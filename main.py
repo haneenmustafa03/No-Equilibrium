@@ -43,7 +43,6 @@ class Individual:
         return self.scrutiny_rounds_left > 0
 
 
-<<<<<<< HEAD
 # calculates how likely someone is to be caught this round
 def calculate_catch_probability(x, current_max_catch_prob):
     return ((x / 100) ** 2) * current_max_catch_prob
@@ -55,8 +54,6 @@ def calculate_penalty(x):
     return penalty
 
 
-=======
->>>>>>> main
 # runs the simulation with N people and R rounds
 def run_simulation(N, R):
     individuals = [Individual(i+1) for i in range(N)]
@@ -123,3 +120,8 @@ def main():
             print("Please enter a valid integer for the number of rounds.")
     print("\nStarting simulation...\n")
     run_simulation(N, R)
+
+
+if __name__ == "__main__":
+
+    main()
