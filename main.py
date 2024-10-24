@@ -1,4 +1,4 @@
- import random
+import random
 
 # Simulation Params (Can be tweaked for increase/decrease tax cheating)
 UTILITY_PER_PERCENT = 0.5          # Utility gained per percent of tax skipped
@@ -16,9 +16,11 @@ class Individual:
         self.x = 50.0  # how much % taxes the indidividual is cheating, (0, 50, or 100)
         self.times_caught = 0
         self.penalty_stack = 0
-        self.probabilities = [0.0, 0.0, 0.0]
+        self.probabilities = [0.0, 0.0, 0.0]  # stores last probability array for print output
 
+    # calculates the probabilities for the mixed strategy of a player based on expected utilities
     def decide_tax_skipping(self, welfare_bonus):
+        # expected utils of strategies
         exp_ncu = welfare_bonus - FLAT_TAX
         exp_hcu = welfare_bonus - FLAT_TAX + UTILITY_PER_PERCENT*50 + HALF_CHEAT_CAUGHT_CHANCE*(calculate_penalty(50)+self.penalty_stack)
         exp_fcu = welfare_bonus - FLAT_TAX + UTILITY_PER_PERCENT*100 + FULL_CHEAT_CAUGHT_CHANCE*(calculate_penalty(100)+self.penalty_stack)
@@ -26,7 +28,6 @@ class Individual:
         options = [0.0, 50.0, 100.0]
         probabilities = [0.0, 0.0, 0.0]
         util_sum = 0
-        # add back later if needed?
         """if exp_ncu >= 0 and exp_hcu >= 0 and exp_fcu >= 0:  # all positive
             util_sum += exp_ncu + exp_hcu + exp_fcu
             probabilities[0] = exp_ncu/util_sum
@@ -63,7 +64,6 @@ class Individual:
         self.x = random.choices(options, weights=probabilities, k=1)[0]
 
 
-
 # calculates how likely someone is to be caught this round
 def calculate_catch_probability(x):
     match x:
@@ -82,8 +82,42 @@ def calculate_penalty(x):
 
 # runs the simulation with N people and R rounds
 def run_simulation(N, R):
-    # TODO: remake simulation to better fit exact project specifications, and add mixed strategy
-    pass
+    individuals = [Individual(i+1) for i in range(N)]
+    welfare = WELFARE_BASE
+    for round_num in range(1, R+1):
+        paid_sum = 0
+        print(f"--- Round {round_num} (Welfare: {welfare*100/WELFARE_BASE:.2f}%)---")
+        for person in individuals:
+            person.decide_tax_skipping(welfare/N)
+            x = person.x
+            paid_sum += 100-x
+            p_catch = calculate_catch_probability(x)
+            caught = random.random() < p_catch
+            if caught:
+                penalty = calculate_penalty(x) + person.penalty_stack
+                utility = penalty
+                caught_str = "Caught"
+                person.times_caught += 1
+                person.penalty_stack = penalty
+                print(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - Penalty this round: {penalty:.2f} - Mixed Strategy: ({person.probabilities[0]*100:.2f}% Pay Full; {person.probabilities[1]*100:.2f}% Cheat Half; {person.probabilities[2]*100:.2f}% Cheat All)")
+            else:
+                utility = x * UTILITY_PER_PERCENT
+                caught_str = "Not Caught"
+                print(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - Utility this round: {utility:.2f} - Mixed Strategy: ({person.probabilities[0]*100:.2f}% Pay Full; {person.probabilities[1]*100:.2f}% Cheat Half; {person.probabilities[2]*100:.2f}% Cheat All)")
+            person.utility += utility
+        print("")
+        welfare = WELFARE_BASE * (paid_sum/(N*100))
+
+    print("=== Simulation Summary ===")
+    for person in individuals:
+        print(f"Person {person.id}: Total Utility over {R} rounds: {person.utility:.2f} - Times Caught: {person.times_caught}")
+    utilities = [person.utility for person in individuals]
+    avg_utility = sum(utilities) / N
+    highest_utility = max(utilities)
+    lowest_utility = min(utilities)
+    print(f"\nAverage Utility: {avg_utility:.2f}")
+    print(f"Highest Utility: {highest_utility:.2f}")
+    print(f"Lowest Utility: {lowest_utility:.2f}")
 
 
 def main():
@@ -113,3 +147,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+
