@@ -1,6 +1,9 @@
 import random
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import scrolledtext
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
+from ttkbootstrap import Style
 import threading
 
 # Simulation Params (Can be tweaked for increase/decrease tax cheating)
@@ -64,7 +67,7 @@ def calculate_penalty(x):
 
 
 # runs the simulation with N people and R rounds
-def run_simulation_main(N, R, mechanism, output_func=print):
+def run_simulation_main(N, R, mechanism, output_func=print, progress_callback=None):
     individuals = [Individual(i + 1) for i in range(N)]
     welfare = WELFARE_BASE * N
     for round_num in range(1, R + 1):
@@ -82,21 +85,24 @@ def run_simulation_main(N, R, mechanism, output_func=print):
                 person.times_caught += 1
                 person.penalty_stack = penalty
                 output_func(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - "
-                            f"Penalty this round: {penalty:.2f} - Mixed Strategy: "
-                            f"({person.probabilities[0] * 100:.2f}% Pay Full; "
-                            f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
-                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
+                           f"Penalty this round: {penalty:.2f} - Mixed Strategy: "
+                           f"({person.probabilities[0] * 100:.2f}% Pay Full; "
+                           f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
+                           f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
             else:
                 utility = welfare / N - FLAT_TAX * ((100 - x) / 100)
                 caught_str = "Not Caught"
                 output_func(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - "
-                            f"Utility this round: {utility:.2f} - Mixed Strategy: "
-                            f"({person.probabilities[0] * 100:.2f}% Pay Full; "
-                            f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
-                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
+                           f"Utility this round: {utility:.2f} - Mixed Strategy: "
+                           f"({person.probabilities[0] * 100:.2f}% Pay Full; "
+                           f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
+                           f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
                 person.utility += utility
         output_func("\n")
         welfare = (WELFARE_BASE * N) * (paid_sum / (FLAT_TAX * N))
+
+        if progress_callback:
+            progress_callback(round_num, R)
 
     summary = "=== Simulation Summary ===\n"
     for person in individuals:
@@ -117,42 +123,74 @@ def run_simulation_main(N, R, mechanism, output_func=print):
 class SimGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Tax Tragedy of the Commons Sim")
+        self.root.title("Tax Tragedy of the Commons Simulation")
+        self.root.geometry("1150x800")
 
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=0)
-        self.root.rowconfigure(1, weight=1)
+        self.style = Style(theme='superhero')
 
-        top_frame = ttk.Frame(self.root, padding="10")
-        top_frame.grid(row=0, column=0, sticky=tk.W + tk.E)
+        main_frame = tb.Frame(self.root, padding=20)
+        main_frame.pack(fill=BOTH, expand=True)
 
-        ttk.Label(top_frame, text="Number of Individuals (N):").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        self.n_var = tk.StringVar()
-        self.n_entry = ttk.Entry(top_frame, textvariable=self.n_var, width=15)
-        self.n_entry.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+        input_frame = tb.LabelFrame(main_frame, text="Simulation Parameters", padding=15)
+        input_frame.pack(fill=X, pady=10)
 
-        ttk.Label(top_frame, text="Number of Rounds (R):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
-        self.r_var = tk.StringVar()
-        self.r_entry = ttk.Entry(top_frame, textvariable=self.r_var, width=15)
-        self.r_entry.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        tb.Label(input_frame, text="Number of Individuals (N):").grid(row=0, column=0, sticky=W, padx=5, pady=5)
+        self.n_var = tk.IntVar(value=100)
+        self.n_spinbox = tb.Spinbox(input_frame, from_=1, to=1000, textvariable=self.n_var, width=10)
+        self.n_spinbox.grid(row=0, column=1, sticky=W, padx=5, pady=5)
 
-        self.run_button = ttk.Button(top_frame, text="Run Simulation", command=self.run_simulation_thread)
-        self.run_button.grid(row=0, column=2, rowspan=2, padx=10, pady=5)
+        tb.Label(input_frame, text="Number of Rounds (R):").grid(row=1, column=0, sticky=W, padx=5, pady=5)
+        self.r_var = tk.IntVar(value=100)
+        self.r_spinbox = tb.Spinbox(input_frame, from_=1, to=1000, textvariable=self.r_var, width=10)
+        self.r_spinbox.grid(row=1, column=1, sticky=W, padx=5, pady=5)
 
-        output_frame = ttk.Frame(self.root, padding="10")
-        output_frame.grid(row=1, column=0, sticky=tk.N + tk.S + tk.E + tk.W)
+        buttons_frame = tb.Frame(main_frame, padding=10)
+        buttons_frame.pack(fill=X, pady=10)
 
-        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=30)
-        self.output_text.pack(fill=tk.BOTH, expand=True)
+        self.run_button = tb.Button(buttons_frame, text="Run Simulation", bootstyle=SUCCESS, command=self.run_simulation_thread)
+        self.run_button.pack(side=LEFT, padx=10)
 
-    # puts the output at the end of the output box and scrolls to it
+        self.run_no_mech_button = tb.Button(buttons_frame, text="Run Simulation without Mechanism", bootstyle=WARNING, command=self.run_simulation_no_mechanism_thread)
+        self.run_no_mech_button.pack(side=LEFT, padx=10)
+
+        self.progress = tb.Progressbar(main_frame, orient=HORIZONTAL, mode='determinate')
+        self.progress.pack(fill=X, pady=10)
+
+        output_frame = tb.LabelFrame(main_frame, text="Simulation Output", padding=10)
+        output_frame.pack(fill=BOTH, expand=True, pady=10)
+
+        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=20, font=("Consolas", 10))
+        self.output_text.pack(fill=BOTH, expand=True)
+
+    # Append to textbox (works with threading)
     def append_output(self, text):
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
 
+    # Update progress bar
+    def update_progress(self, current, total):
+        progress_percentage = (current / total) * 100
+        self.progress['value'] = progress_percentage
+        self.root.update_idletasks()
+
+    # Disable buttons
+    def disable_buttons(self):
+        self.run_button.config(state=DISABLED)
+        self.run_no_mech_button.config(state=DISABLED)
+
+    # Enable buttons
+    def enable_buttons(self):
+        self.run_button.config(state=NORMAL)
+        self.run_no_mech_button.config(state=NORMAL)
+
+    # Clear output
+    def clear_output(self):
+        self.output_text.delete(1.0, tk.END)
+
     # Run sim in a thread
     def run_simulation_thread(self):
-        self.run_button.config(state=tk.DISABLED)
+        self.clear_output()
+        self.disable_buttons()
         N = int(self.n_var.get())
         R = int(self.r_var.get())
         simulation_thread = threading.Thread(target=self.run_simulation, args=(N, R, True))
@@ -160,19 +198,19 @@ class SimGUI:
 
     # Run sim in a thread (with no mechanism)
     def run_simulation_no_mechanism_thread(self):
-        self.run_button.config(state=tk.DISABLED)
-        N = int(self.n_var.get())
-        R = int(self.r_var.get())
+        self.clear_output()
+        self.disable_buttons()
+        N = self.n_var.get()
+        R = self.r_var.get()
         simulation_thread = threading.Thread(target=self.run_simulation, args=(N, R, False))
         simulation_thread.start()
 
     def run_simulation(self, N, R, mechanism):
-        run_simulation_main(N, R, mechanism, self.append_output)
-        self.run_button.config(state=tk.NORMAL)
-
+        run_simulation_main(N, R, mechanism, self.append_output, self.update_progress)
+        self.enable_buttons()
 
 def main():
-    root = tk.Tk()
+    root = tb.Window()
     SimGUI(root)
     root.mainloop()
 
