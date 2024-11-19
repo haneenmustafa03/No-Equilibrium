@@ -8,11 +8,13 @@ Sept: https://docs.google.com/presentation/d/14rmT39FMzMzS5M-Y28k7gXANtDs3VqTukV
 
 Oct: https://docs.google.com/presentation/d/1DME4rMFgyVKV3oYndQA59D3u4-Q3ydZm5Q8D_dXD6z0/edit?usp=sharing
 
+Nov: https://docs.google.com/presentation/d/1DME4rMFgyVKV3oYndQA59D3u4-Q3ydZm5Q8D_dXD6z0/edit?usp=sharing
+
 Instructions:
 
--You must first install tkinter, which can be done using pip, "pip install tk"
+-You must first install tkinter and ttkbootstrap, which can be done using pip, "pip install tk" and "pip install ttkbootstrap"
 
--Run script and enter on-screen prompts for the number of individuals and number of rounds for the simulation then click the run button
+-Run script and enter on-screen prompts for the number of individuals and number of rounds for the simulation then click the run button with/without the mechanism
 
 -Results will be displayed in the text box with a summary of averages shown at the end
 
