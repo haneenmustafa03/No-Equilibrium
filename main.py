@@ -3,12 +3,10 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 
 # Simulation Params (Can be tweaked for increase/decrease tax cheating)
-UTILITY_PER_PERCENT = 0.5          # Utility gained per percent of tax skipped
-BASE_MAX_PENALTY = 100.0           # Maximum penalty when caught cheating 100%
 FULL_CHEAT_CAUGHT_CHANCE = 0.75    # Chance of getting caught from fully cheating
 HALF_CHEAT_CAUGHT_CHANCE = 0.3     # Chance of getting caught from half cheating
 FLAT_TAX = 20                       # Flat tax everyone owes
-WELFARE_BASE = 1000                 # Welfare pool
+WELFARE_BASE = 40                 # Welfare pool per person (to auto scale welfare with more people)
 
 
 class Individual:
@@ -21,29 +19,25 @@ class Individual:
         self.probabilities = [0.0, 0.0, 0.0]  # stores last probability array for print output
 
     # calculates the probabilities for the mixed strategy of a player based on expected utilities
-    def decide_tax_skipping(self, welfare_bonus):
+    def decide_tax_skipping(self, welfare_bonus, mechanism):
         # expected utils of strategies
-        exp_ncu = welfare_bonus - FLAT_TAX
-        exp_hcu = welfare_bonus - FLAT_TAX + UTILITY_PER_PERCENT * 50 + HALF_CHEAT_CAUGHT_CHANCE * (calculate_penalty(50) + self.penalty_stack)
-        exp_fcu = welfare_bonus - FLAT_TAX + UTILITY_PER_PERCENT * 100 + FULL_CHEAT_CAUGHT_CHANCE * (calculate_penalty(100) + self.penalty_stack)
+        if mechanism:
+            exp_ncu = welfare_bonus - FLAT_TAX
+            exp_hcu = welfare_bonus - FLAT_TAX * .5 + HALF_CHEAT_CAUGHT_CHANCE * (calculate_penalty(50) + self.penalty_stack)
+            exp_fcu = welfare_bonus + FULL_CHEAT_CAUGHT_CHANCE * (calculate_penalty(100) + self.penalty_stack)
+        else:
+            exp_ncu = welfare_bonus - FLAT_TAX
+            exp_hcu = welfare_bonus - FLAT_TAX * .5
+            exp_fcu = welfare_bonus
 
         options = [0.0, 50.0, 100.0]
         probabilities = [0.0, 0.0, 0.0]
         util_sum = 0
 
         smallest = abs(min(exp_ncu, exp_hcu, exp_fcu))
-        if exp_ncu > exp_hcu and exp_ncu > exp_fcu:
-            exp_ncu = (exp_ncu + 1.5 * smallest) * 2
-        else:
-            exp_ncu += 1.5 * smallest
-        if exp_hcu > exp_ncu and exp_hcu > exp_fcu:
-            exp_hcu = (exp_hcu + 1.5 * smallest) * 2
-        else:
-            exp_hcu += 1.5 * smallest
-        if exp_fcu > exp_hcu and exp_fcu > exp_ncu:
-            exp_fcu = (exp_fcu + 1.5 * smallest) * 2
-        else:
-            exp_fcu += 1.5 * smallest
+        exp_ncu += 1.5 * smallest
+        exp_hcu += 1.5 * smallest
+        exp_fcu += 1.5 * smallest
         util_sum += exp_ncu + exp_hcu + exp_fcu
         probabilities[0] = exp_ncu / util_sum
         probabilities[1] = exp_hcu / util_sum
@@ -69,19 +63,19 @@ def calculate_penalty(x):
 
 
 # runs the simulation with N people and R rounds
-def run_simulation(N, R, output_func=print):
+def run_simulation(N, R, mechanism, output_func=print):
     individuals = [Individual(i + 1) for i in range(N)]
-    welfare = WELFARE_BASE
+    welfare = WELFARE_BASE*N
     for round_num in range(1, R + 1):
         paid_sum = 0
-        output_func(f"--- Round {round_num} (Welfare: {welfare * 100 / WELFARE_BASE:.2f}%)---\n")
+        output_func(f"--- Round {round_num} (Welfare: {welfare*100 / (WELFARE_BASE*N):.2f}%)---\n")
         for person in individuals:
-            person.decide_tax_skipping(welfare / N)
+            person.decide_tax_skipping(welfare / N, mechanism)
             x = person.x
-            paid_sum += 100 - x
+            paid_sum += FLAT_TAX * ((100-x)/100)
             p_catch = calculate_catch_probability(x)
             caught = random.random() < p_catch
-            if caught:
+            if caught and mechanism:
                 penalty = calculate_penalty(x) + person.penalty_stack
                 caught_str = "Caught"
                 person.times_caught += 1
@@ -92,7 +86,7 @@ def run_simulation(N, R, output_func=print):
                            f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
             else:
-                utility = x * UTILITY_PER_PERCENT
+                utility = welfare/N - FLAT_TAX * ((100-x)/100)
                 caught_str = "Not Caught"
                 output_func(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - "
                            f"Utility this round: {utility:.2f} - Mixed Strategy: "
@@ -101,7 +95,7 @@ def run_simulation(N, R, output_func=print):
                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
                 person.utility += utility
         output_func("\n")
-        welfare = WELFARE_BASE * (paid_sum / (N * 100))
+        welfare = (WELFARE_BASE*N) * (paid_sum / (FLAT_TAX*N))
 
     summary = "=== Simulation Summary ===\n"
     for person in individuals:
@@ -114,6 +108,7 @@ def run_simulation(N, R, output_func=print):
     summary += f"\nAverage Utility: {avg_utility:.2f}\n"
     summary += f"Highest Utility: {highest_utility:.2f}\n"
     summary += f"Lowest Utility: {lowest_utility:.2f}\n"
+    summary += f"Final Welfare: {welfare*100 / (WELFARE_BASE*N):.2f}%\n"
     output_func(summary)
 
 
