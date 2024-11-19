@@ -1,12 +1,13 @@
 import random
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
+import threading
 
 # Simulation Params (Can be tweaked for increase/decrease tax cheating)
-FULL_CHEAT_CAUGHT_CHANCE = 0.75    # Chance of getting caught from fully cheating
-HALF_CHEAT_CAUGHT_CHANCE = 0.3     # Chance of getting caught from half cheating
-FLAT_TAX = 20                       # Flat tax everyone owes
-WELFARE_BASE = 40                 # Welfare pool per person (to auto scale welfare with more people)
+FULL_CHEAT_CAUGHT_CHANCE = 0.75  # Chance of getting caught from fully cheating
+HALF_CHEAT_CAUGHT_CHANCE = 0.3  # Chance of getting caught from half cheating
+FLAT_TAX = 20  # Flat tax everyone owes
+WELFARE_BASE = 40  # Welfare pool per person (to auto scale welfare with more people)
 
 
 class Individual:
@@ -63,16 +64,16 @@ def calculate_penalty(x):
 
 
 # runs the simulation with N people and R rounds
-def run_simulation(N, R, mechanism, output_func=print):
+def run_simulation_main(N, R, mechanism, output_func=print):
     individuals = [Individual(i + 1) for i in range(N)]
-    welfare = WELFARE_BASE*N
+    welfare = WELFARE_BASE * N
     for round_num in range(1, R + 1):
         paid_sum = 0
-        output_func(f"--- Round {round_num} (Welfare: {welfare*100 / (WELFARE_BASE*N):.2f}%)---\n")
+        output_func(f"--- Round {round_num} (Welfare: {welfare * 100 / (WELFARE_BASE * N):.2f}%)---\n")
         for person in individuals:
             person.decide_tax_skipping(welfare / N, mechanism)
             x = person.x
-            paid_sum += FLAT_TAX * ((100-x)/100)
+            paid_sum += FLAT_TAX * ((100 - x) / 100)
             p_catch = calculate_catch_probability(x)
             caught = random.random() < p_catch
             if caught and mechanism:
@@ -81,21 +82,21 @@ def run_simulation(N, R, mechanism, output_func=print):
                 person.times_caught += 1
                 person.penalty_stack = penalty
                 output_func(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - "
-                           f"Penalty this round: {penalty:.2f} - Mixed Strategy: "
-                           f"({person.probabilities[0] * 100:.2f}% Pay Full; "
-                           f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
-                           f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
+                            f"Penalty this round: {penalty:.2f} - Mixed Strategy: "
+                            f"({person.probabilities[0] * 100:.2f}% Pay Full; "
+                            f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
+                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
             else:
-                utility = welfare/N - FLAT_TAX * ((100-x)/100)
+                utility = welfare / N - FLAT_TAX * ((100 - x) / 100)
                 caught_str = "Not Caught"
                 output_func(f"Person {person.id}: Skipped {x:.2f}% of taxes - {caught_str} - "
-                           f"Utility this round: {utility:.2f} - Mixed Strategy: "
-                           f"({person.probabilities[0] * 100:.2f}% Pay Full; "
-                           f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
-                           f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
+                            f"Utility this round: {utility:.2f} - Mixed Strategy: "
+                            f"({person.probabilities[0] * 100:.2f}% Pay Full; "
+                            f"{person.probabilities[1] * 100:.2f}% Cheat Half; "
+                            f"{person.probabilities[2] * 100:.2f}% Cheat All)\n")
                 person.utility += utility
         output_func("\n")
-        welfare = (WELFARE_BASE*N) * (paid_sum / (FLAT_TAX*N))
+        welfare = (WELFARE_BASE * N) * (paid_sum / (FLAT_TAX * N))
 
     summary = "=== Simulation Summary ===\n"
     for person in individuals:
@@ -108,7 +109,7 @@ def run_simulation(N, R, mechanism, output_func=print):
     summary += f"\nAverage Utility: {avg_utility:.2f}\n"
     summary += f"Highest Utility: {highest_utility:.2f}\n"
     summary += f"Lowest Utility: {lowest_utility:.2f}\n"
-    summary += f"Final Welfare: {welfare*100 / (WELFARE_BASE*N):.2f}%\n"
+    summary += f"Final Welfare: {welfare * 100 / (WELFARE_BASE * N):.2f}%\n"
     output_func(summary)
 
 
@@ -135,7 +136,7 @@ class SimGUI:
         self.r_entry = ttk.Entry(top_frame, textvariable=self.r_var, width=15)
         self.r_entry.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
 
-        self.run_button = ttk.Button(top_frame, text="Run Simulation", command=self.run_simulation)
+        self.run_button = ttk.Button(top_frame, text="Run Simulation", command=self.run_simulation_thread)
         self.run_button.grid(row=0, column=2, rowspan=2, padx=10, pady=5)
 
         output_frame = ttk.Frame(self.root, padding="10")
@@ -149,28 +150,24 @@ class SimGUI:
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
 
-    # runs the sim and clears previous outputs
-    def run_simulation(self):
-        self.output_text.delete(1.0, tk.END)
-
-        try:
-            N = int(self.n_var.get())
-            if N <= 0:
-                raise ValueError("Number of individuals must be positive.")
-        except ValueError as ve:
-            messagebox.showerror("Invalid Input", f"Invalid number of individuals (N): {ve}")
-            return
-
-        try:
-            R = int(self.r_var.get())
-            if R <= 0:
-                raise ValueError("Number of rounds must be positive.")
-        except ValueError as ve:
-            messagebox.showerror("Invalid Input", f"Invalid number of rounds (R): {ve}")
-            return
-
+    # Run sim in a thread
+    def run_simulation_thread(self):
         self.run_button.config(state=tk.DISABLED)
-        run_simulation(N, R, self.append_output)
+        N = int(self.n_var.get())
+        R = int(self.r_var.get())
+        simulation_thread = threading.Thread(target=self.run_simulation, args=(N, R, True))
+        simulation_thread.start()
+
+    # Run sim in a thread (with no mechanism)
+    def run_simulation_no_mechanism_thread(self):
+        self.run_button.config(state=tk.DISABLED)
+        N = int(self.n_var.get())
+        R = int(self.r_var.get())
+        simulation_thread = threading.Thread(target=self.run_simulation, args=(N, R, False))
+        simulation_thread.start()
+
+    def run_simulation(self, N, R, mechanism):
+        run_simulation_main(N, R, mechanism, self.append_output)
         self.run_button.config(state=tk.NORMAL)
 
 
